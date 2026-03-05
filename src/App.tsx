@@ -1,20 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { 
-  Video, 
-  Sparkles, 
-  LayoutDashboard, 
-  CreditCard, 
-  LogOut, 
-  Menu, 
-  X, 
-  ChevronRight, 
-  Plus, 
-  History, 
-  ShieldCheck, 
-  User as UserIcon, 
-  CheckCircle2, 
-  AlertCircle, 
+import {
+  Video,
+  Sparkles,
+  LayoutDashboard,
+  CreditCard,
+  LogOut,
+  Menu,
+  X,
+  ChevronRight,
+  Plus,
+  History,
+  ShieldCheck,
+  User as UserIcon,
+  CheckCircle2,
+  AlertCircle,
   Loader2,
   Download,
   Play
@@ -73,7 +73,7 @@ export default function App() {
               </div>
             </div>
           </div>
-          <button 
+          <button
             onClick={logout}
             className="flex items-center gap-3 w-full px-4 py-3 text-gray-400 hover:text-white hover:bg-white/5 rounded-xl transition-all"
           >
@@ -97,7 +97,7 @@ export default function App() {
       {/* Mobile Menu */}
       <AnimatePresence>
         {isMobileMenuOpen && (
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0, x: -100 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -100 }}
@@ -135,12 +135,12 @@ export default function App() {
 
 function NavItem({ active, icon, label, onClick }: { active: boolean, icon: React.ReactNode, label: string, onClick: () => void }) {
   return (
-    <button 
+    <button
       onClick={onClick}
       className={cn(
         "flex items-center gap-3 w-full px-4 py-3 rounded-xl transition-all duration-200 group",
-        active 
-          ? "bg-indigo-600 text-white shadow-lg shadow-indigo-600/20" 
+        active
+          ? "bg-indigo-600 text-white shadow-lg shadow-indigo-600/20"
           : "text-gray-400 hover:text-white hover:bg-white/5"
       )}
     >
@@ -171,7 +171,7 @@ function GenerateTab({ user }: { user: any }) {
     try {
       setStatus('Criando roteiro persuasivo...');
       const script = await generateReelScript(theme, topic, language, duration, user.plan);
-      
+
       setStatus('Gerando imagens cinematográficas...');
       const scenesWithAssets = [];
       for (let i = 0; i < script.scenes.length; i++) {
@@ -193,7 +193,7 @@ function GenerateTab({ user }: { user: any }) {
 
       setGeneratedReel(finalReel);
       setStatus('Salvando na sua galeria...');
-      await fetch('/api/reels/save', {
+      await fetch('/api-v1/reels/save', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(finalReel)
@@ -209,7 +209,7 @@ function GenerateTab({ user }: { user: any }) {
 
   return (
     <div className="grid lg:grid-cols-2 gap-10 items-start">
-      <motion.div 
+      <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         className="space-y-8"
@@ -222,7 +222,7 @@ function GenerateTab({ user }: { user: any }) {
         <div className="space-y-6 bg-[#0f0f12] p-8 rounded-3xl border border-white/5 shadow-xl">
           <div className="space-y-2">
             <label className="text-sm font-semibold text-gray-300">Tema do Vídeo</label>
-            <select 
+            <select
               value={theme}
               onChange={(e) => setTheme(e.target.value)}
               className="w-full bg-[#16161a] border border-white/10 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all"
@@ -233,7 +233,7 @@ function GenerateTab({ user }: { user: any }) {
 
           <div className="space-y-2">
             <label className="text-sm font-semibold text-gray-300">Idioma</label>
-            <select 
+            <select
               value={language}
               onChange={(e) => setLanguage(e.target.value)}
               className="w-full bg-[#16161a] border border-white/10 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all"
@@ -244,7 +244,7 @@ function GenerateTab({ user }: { user: any }) {
 
           <div className="space-y-2">
             <label className="text-sm font-semibold text-gray-300">Tópico ou Assunto</label>
-            <textarea 
+            <textarea
               value={topic}
               onChange={(e) => setTopic(e.target.value)}
               placeholder={currentTheme?.placeholder}
@@ -276,7 +276,7 @@ function GenerateTab({ user }: { user: any }) {
             </div>
           </div>
 
-          <button 
+          <button
             onClick={handleGenerate}
             disabled={isGenerating || !topic}
             className="w-full bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-4 rounded-xl shadow-lg shadow-indigo-600/20 transition-all flex items-center justify-center gap-2 overflow-hidden relative"
@@ -293,7 +293,7 @@ function GenerateTab({ user }: { user: any }) {
               </>
             )}
           </button>
-          
+
           {status && (
             <p className="text-center text-xs text-indigo-400 animate-pulse font-medium">{status}</p>
           )}
@@ -330,7 +330,7 @@ function GalleryTab() {
   const [selectedReel, setSelectedReel] = useState<any>(null);
 
   useEffect(() => {
-    fetch('/api/reels')
+    fetch('/api-v1/reels')
       .then(res => res.json())
       .then(data => {
         setReels(data);
@@ -355,15 +355,15 @@ function GalleryTab() {
       ) : (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
           {reels.map(reel => (
-            <motion.div 
+            <motion.div
               key={reel.id}
               whileHover={{ y: -5 }}
               onClick={() => setSelectedReel(reel)}
               className="bg-[#0f0f12] rounded-2xl overflow-hidden border border-white/5 cursor-pointer group"
             >
               <div className="aspect-[9/16] bg-gray-900 relative">
-                <img 
-                  src={JSON.parse(reel.assets)[0].imageUrl} 
+                <img
+                  src={JSON.parse(reel.assets)[0].imageUrl}
                   className="w-full h-full object-cover opacity-60 group-hover:opacity-80 transition-opacity"
                   referrerPolicy="no-referrer"
                 />
@@ -383,13 +383,13 @@ function GalleryTab() {
       <AnimatePresence>
         {selectedReel && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/90 backdrop-blur-sm">
-            <motion.div 
+            <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
               className="relative max-w-4xl w-full flex flex-col items-center"
             >
-              <button 
+              <button
                 onClick={() => setSelectedReel(null)}
                 className="absolute -top-12 right-0 text-white hover:text-indigo-400 transition-colors"
               >
@@ -412,7 +412,7 @@ function PricingTab({ user, refreshUser }: { user: any, refreshUser: () => void 
     if (plan.name === 'Gratuito') return;
     setLoadingPlan(plan.name);
     try {
-      const res = await fetch('/api/payments/create-preference', {
+      const res = await fetch('/api-v1/payments/create-preference', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ planName: plan.name, price: plan.price })
@@ -437,7 +437,7 @@ function PricingTab({ user, refreshUser }: { user: any, refreshUser: () => void 
 
       <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
         {PLANS.map(plan => (
-          <div 
+          <div
             key={plan.name}
             className={cn(
               "bg-[#0f0f12] rounded-3xl p-8 border flex flex-col transition-all duration-300",
@@ -461,13 +461,13 @@ function PricingTab({ user, refreshUser }: { user: any, refreshUser: () => void 
               ))}
             </div>
 
-            <button 
+            <button
               onClick={() => handleBuy(plan)}
               disabled={user.plan === plan.name || plan.name === 'Gratuito' || !!loadingPlan}
               className={cn(
                 "w-full py-4 rounded-xl font-bold transition-all flex items-center justify-center gap-2",
-                user.plan === plan.name 
-                  ? "bg-white/5 text-indigo-400 cursor-default" 
+                user.plan === plan.name
+                  ? "bg-white/5 text-indigo-400 cursor-default"
                   : plan.name === 'Gratuito'
                     ? "bg-white/5 text-gray-500 cursor-default"
                     : "bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-600/20"
@@ -487,7 +487,7 @@ function AdminTab() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch('/api/admin/users')
+    fetch('/api-v1/admin/users')
       .then(res => res.json())
       .then(data => {
         setUsers(data);
@@ -533,7 +533,7 @@ function PaymentSuccessTab({ refreshUser, setActiveTab }: { refreshUser: () => v
     const params = new URLSearchParams(window.location.search);
     const plan = params.get('plan');
     if (plan) {
-      fetch('/api/payments/confirm', {
+      fetch('/api-v1/payments/confirm', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ plan })
@@ -570,15 +570,30 @@ function AuthPage() {
     setError('');
     setLoading(true);
     try {
-      const endpoint = isLogin ? '/api/auth/login' : '/api/auth/register';
+      const endpoint = isLogin ? '/auth-v1/login' : '/auth-v1/register';
       const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, email, password })
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-      
+
+      console.log(`Auth Response: ${res.status} ${res.statusText}`);
+
+      let data;
+      const contentType = res.headers.get("content-type");
+      if (contentType && contentType.includes("application/json")) {
+        data = await res.json();
+      } else {
+        const text = await res.text();
+        console.error("Non-JSON Auth Response:", text);
+        throw new Error(`Erro do servidor (${res.status}): ${text.substring(0, 50)}`);
+      }
+
+      if (!res.ok) {
+        console.error("Auth Error Data:", data);
+        throw new Error(data?.error || `Erro: ${res.status}`);
+      }
+
       if (isLogin) {
         login(data.user);
       } else {
@@ -586,7 +601,10 @@ function AuthPage() {
         setError('Conta criada! Faça login agora.');
       }
     } catch (err: any) {
-      setError(err.message);
+      console.error("Auth Error:", err);
+      setError(err.message === "Unexpected end of JSON input"
+        ? "O servidor retornou uma resposta vazia. Verifique se o backend está rodando."
+        : err.message);
     } finally {
       setLoading(false);
     }
@@ -594,7 +612,7 @@ function AuthPage() {
 
   return (
     <div className="min-h-screen bg-[#0a0a0c] flex items-center justify-center p-6 bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-indigo-900/20 via-transparent to-transparent">
-      <motion.div 
+      <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         className="w-full max-w-md bg-[#0f0f12] p-10 rounded-[2.5rem] border border-white/5 shadow-2xl"
@@ -611,9 +629,9 @@ function AuthPage() {
           {!isLogin && (
             <div className="space-y-2">
               <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1">Nome de Usuário</label>
-              <input 
+              <input
                 required
-                type="text" 
+                type="text"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 className="w-full bg-[#16161a] border border-white/5 rounded-2xl px-5 py-4 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all"
@@ -623,9 +641,9 @@ function AuthPage() {
           )}
           <div className="space-y-2">
             <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1">E-mail</label>
-            <input 
+            <input
               required
-              type="email" 
+              type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               className="w-full bg-[#16161a] border border-white/5 rounded-2xl px-5 py-4 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all"
@@ -634,9 +652,9 @@ function AuthPage() {
           </div>
           <div className="space-y-2">
             <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1">Senha</label>
-            <input 
+            <input
               required
-              type="password" 
+              type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="w-full bg-[#16161a] border border-white/5 rounded-2xl px-5 py-4 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all"
@@ -651,7 +669,7 @@ function AuthPage() {
             </div>
           )}
 
-          <button 
+          <button
             disabled={loading}
             className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-5 rounded-2xl shadow-lg shadow-indigo-600/20 transition-all flex items-center justify-center gap-2"
           >
@@ -660,7 +678,7 @@ function AuthPage() {
         </form>
 
         <div className="mt-8 text-center">
-          <button 
+          <button
             onClick={() => setIsLogin(!isLogin)}
             className="text-sm text-gray-400 hover:text-indigo-400 transition-colors"
           >

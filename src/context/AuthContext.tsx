@@ -23,7 +23,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const refreshUser = async () => {
     try {
-      const res = await fetch('/api/user/me');
+      const res = await fetch('/auth-v1/me');
       if (res.ok) {
         const data = await res.json();
         setUser(data);
@@ -38,12 +38,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   useEffect(() => {
+    const checkApi = async () => {
+      try {
+        const res = await fetch('/server-ping');
+        if (!res.ok) {
+          console.error(`API Health Check Failed: ${res.status} ${res.statusText}`);
+          const text = await res.text();
+          console.error(`Response body: ${text.substring(0, 100)}`);
+        } else {
+          console.log("API is reachable");
+        }
+      } catch (err) {
+        console.error("API Health Check Network Error:", err);
+      }
+    };
+    checkApi();
     refreshUser();
   }, []);
 
   const login = (userData: User) => setUser(userData);
   const logout = async () => {
-    await fetch('/api/auth/logout', { method: 'POST' });
+    await fetch('/auth-v1/logout', { method: 'POST' });
     setUser(null);
   };
 
