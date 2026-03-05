@@ -9,24 +9,24 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
-# Copiar apenas o package.json para instalar dependências primeiro (cache)
+# Copiar arquivos de dependências
 COPY package.json ./
 
-# Instalar todas as dependências (incluindo devDependencies para o build)
+# Instalar dependências (incluindo devDependencies para o build e runtime)
 RUN npm install
 
-# Copiar o resto do código do projeto
+# Copiar o resto do código
 COPY . .
 
 # Gerar o build do frontend (Vite)
 RUN npm run build
 
-# Expor a porta padrão
+# Expor a porta
 EXPOSE 3000
 
-# Variáveis de ambiente de produção
+# Variáveis de ambiente padrão
 ENV NODE_ENV=production
 ENV PORT=3000
 
-# Comando de inicialização
+# Comando para iniciar
 CMD ["npm", "start"]
