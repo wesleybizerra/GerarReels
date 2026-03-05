@@ -19,6 +19,7 @@ import {
   Download,
   Play
 } from 'lucide-react';
+import { io } from 'socket.io-client';
 import { useAuth } from './context/AuthContext';
 import { THEMES, LANGUAGES, PLANS, cn } from './constants';
 import { generateReelScript, generateSceneImage, generateSceneAudio } from './services/geminiService';
@@ -487,12 +488,23 @@ function AdminTab() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Initial fetch
     fetch('/api-v1/admin/users')
       .then(res => res.json())
       .then(data => {
         setUsers(data);
         setLoading(false);
       });
+
+    // Setup real-time updates
+    const socket = io();
+    socket.on('user:registered', (newUser) => {
+      setUsers(prev => [newUser, ...prev]);
+    });
+
+    return () => {
+      socket.disconnect();
+    };
   }, []);
 
   if (loading) return <div className="flex justify-center py-20"><Loader2 className="animate-spin text-indigo-500" /></div>;

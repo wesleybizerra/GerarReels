@@ -10,6 +10,8 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { MercadoPagoConfig, Preference } from "mercadopago";
 import dotenv from "dotenv";
+import { createServer } from "http";
+import { Server } from "socket.io";
 
 dotenv.config();
 
@@ -75,6 +77,14 @@ if (!existingAdmin) {
 
 async function startServer() {
   const app = express();
+  const httpServer = createServer(app);
+  const io = new Server(httpServer, {
+    cors: {
+      origin: true,
+      credentials: true
+    }
+  });
+
   const PORT = Number(process.env.PORT) || 3000;
 
   app.use(cors({
@@ -122,12 +132,17 @@ async function startServer() {
     }
     try {
       const hashedPassword = await bcrypt.hash(password, 10);
+      const finalUsername = username || email.split('@')[0];
       db.prepare("INSERT INTO users (username, email, password) VALUES (?, ?, ?)").run(
-        username || email.split('@')[0],
+        finalUsername,
         email,
         hashedPassword
       );
       console.log("User registered:", email);
+
+      // Emit real-time update
+      io.emit("user:registered", { username: finalUsername });
+
       res.json({ success: true });
     } catch (err: any) {
       console.error("Register error:", err);
@@ -264,7 +279,7 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
+  httpServer.listen(PORT, "0.0.0.0", () => {
     console.log(`--- SERVER RUNNING ON PORT ${PORT} ---`);
   });
 }

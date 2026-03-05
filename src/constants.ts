@@ -6,6 +6,8 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 export const THEMES = [
+  { id: "Coisas que parecem normais no Brasil, mas chocam os gringos", placeholder: "Arroz e feijão todo dia e Descarga com dois botões" },
+  { id: "Você sabia que seu cérebro te engana todos os dias?", placeholder: "Efeito Mandela (memórias falsas coletivas) ou Por que você esquece o que ia fazer ao trocar de cômodo" },
   { id: "TOP 5", placeholder: "Destinos de Viagem ou Lanches Saudáveis" },
   { id: "Fato", placeholder: "Curiosidades sobre o Espaço ou Fatos sobre Tubarões" },
   { id: "Classificação", placeholder: "Melhores Filmes de 2023 ou Carros mais rápidos" },
