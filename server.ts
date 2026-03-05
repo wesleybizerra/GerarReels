@@ -9,7 +9,6 @@ import jwt from "jsonwebtoken";
 import dotenv from "dotenv";
 import { createServer } from "http";
 import { Server } from "socket.io";
-import { GoogleGenAI } from "@google/genai";
 
 dotenv.config();
 
@@ -17,11 +16,13 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const JWT_SECRET = process.env.JWT_SECRET || "super-secret-key";
+const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
 const PORT = Number(process.env.PORT) || 3000;
 
-const ai = new GoogleGenAI({
-  apiKey: process.env.GEMINI_API_KEY || ""
-});
+if (!OPENROUTER_API_KEY) {
+  console.error("❌ OPENROUTER_API_KEY não configurada!");
+  process.exit(1);
+}
 
 // ---------------- DATABASE ----------------
 
@@ -73,19 +74,16 @@ if (!existingAdmin) {
 
 const app = express();
 const httpServer = createServer(app);
-const io = new Server(httpServer, {
-  cors: { origin: true, credentials: true }
-});
+new Server(httpServer);
 
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json({ limit: "50mb" }));
 app.use(cookieParser());
 
-// ---------------- AUTH MIDDLEWARE ----------------
+// ---------------- AUTH ----------------
 
 const authenticate = (req: any, res: any, next: any) => {
   const token = req.cookies.token;
-
   if (!token) return res.status(401).json({ error: "Unauthorized" });
 
   try {
@@ -109,8 +107,6 @@ app.post("/auth-v1/register", async (req, res) => {
       "INSERT INTO users (username, email, password) VALUES (?, ?, ?)"
     ).run(username, email, hashed);
 
-    io.emit("user:registered", { username });
-
     res.json({ success: true });
   } catch {
     res.status(400).json({ error: "E-mail já cadastrado." });
@@ -124,15 +120,10 @@ app.post("/auth-v1/login", async (req, res) => {
     .prepare("SELECT * FROM users WHERE email = ?")
     .get(email);
 
-  if (!user) {
-    return res.status(401).json({ error: "Credenciais inválidas." });
-  }
+  if (!user) return res.status(401).json({ error: "Credenciais inválidas." });
 
   const match = await bcrypt.compare(password, user.password);
-
-  if (!match) {
-    return res.status(401).json({ error: "Credenciais inválidas." });
-  }
+  if (!match) return res.status(401).json({ error: "Credenciais inválidas." });
 
   const token = jwt.sign(
     { id: user.id, email: user.email, plan: user.plan },
@@ -155,17 +146,17 @@ app.post("/auth-v1/login", async (req, res) => {
   });
 });
 
-app.post("/auth-v1/logout", (req, res) => {
-  res.clearCookie("token");
-  res.json({ success: true });
-});
-
 app.get("/auth-v1/me", authenticate, (req: any, res) => {
   const user = db
     .prepare("SELECT id, username, email, plan FROM users WHERE id = ?")
     .get(req.user.id);
 
   res.json(user);
+});
+
+app.post("/auth-v1/logout", (req, res) => {
+  res.clearCookie("token");
+  res.json({ success: true });
 });
 
 // ---------------- REELS ----------------
@@ -188,7 +179,7 @@ app.post("/api-v1/reels/save", authenticate, (req: any, res) => {
   res.json({ success: true });
 });
 
-// ---------------- GEMINI SCRIPT ----------------
+// ---------------- GERAR ROTEIRO VIA OPENROUTER ----------------
 
 app.post("/api-v1/generate/script", authenticate, async (req: any, res) => {
   const { theme, topic, language, duration } = req.body;
@@ -202,7 +193,8 @@ Tópico: ${topic}
 Idioma: ${language}
 Duração aproximada: ${duration} segundos.
 
-Retorne JSON válido:
+Retorne apenas JSON válido:
+
 {
   "title": "...",
   "scenes": [
@@ -211,20 +203,39 @@ Retorne JSON válido:
 }
 `;
 
-    const result = await ai.models.generateContent({
-      model: "gemini-2.0-flash",
-      contents: prompt,
-      config: { responseMimeType: "application/json" }
+    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${OPENROUTER_API_KEY}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: "deepseek/deepseek-chat",
+        messages: [
+          { role: "system", content: "Você é um especialista em criar roteiros virais para redes sociais." },
+          { role: "user", content: prompt }
+        ],
+        temperature: 0.7
+      })
     });
 
-    res.json(JSON.parse(result.text || "{}"));
+    const data = await response.json();
+
+    if (!response.ok) {
+      console.error("OPENROUTER ERROR:", data);
+      return res.status(500).json({ error: data.error || "Erro OpenRouter" });
+    }
+
+    const text = data.choices?.[0]?.message?.content;
+
+    res.json(JSON.parse(text));
   } catch (err: any) {
     console.error("SCRIPT ERROR:", err);
     res.status(500).json({ error: err.message });
   }
 });
 
-// ---------------- STATIC (PRODUCTION) ----------------
+// ---------------- STATIC ----------------
 
 if (process.env.NODE_ENV === "production") {
   const distPath = path.resolve(__dirname, "dist");
