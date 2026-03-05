@@ -2,7 +2,7 @@ import { GoogleGenAI, Type, Modality } from "@google/genai";
 
 const apiKey = process.env.GEMINI_API_KEY || "";
 if (!apiKey) {
-  console.warn("GEMINI_API_KEY não encontrada no ambiente. A geração de Reels irá falhar.");
+  throw new Error("Chave da API (GEMINI_API_KEY) não encontrada. No Railway, adicione esta variável em 'Variables' e faça um novo Deploy.");
 }
 const ai = new GoogleGenAI({ apiKey });
 
