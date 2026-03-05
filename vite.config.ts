@@ -1,10 +1,9 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
-import { fileURLToPath } from 'url'; // Adicionado
+import { fileURLToPath } from 'url';
 import { defineConfig, loadEnv } from 'vite';
 
-// Definição correta de __dirname para ESM
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -25,4 +24,8 @@ export default defineConfig(({ mode }) => {
       emptyOutDir: true,
       sourcemap: false,
     },
-// ... restante do arquivo
+    server: {
+      hmr: process.env.DISABLE_HMR !== 'true',
+    },
+  };
+});
