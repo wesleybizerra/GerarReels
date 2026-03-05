@@ -1,21 +1,7 @@
-FROM node:20-slim AS builder
-RUN apt-get update && apt-get install -y python3 make g++ && rm -rf /var/lib/apt/lists/*
-WORKDIR /app
-COPY package.json ./
-RUN npm install
-COPY . .
-RUN npm run build
+# ... (estágio anterior)
+# Copiar arquivos de dependências
+COPY package.json package-lock.json* ./
 
-FROM node:20-slim
-WORKDIR /app
-RUN apt-get update && apt-get install -y python3 && rm -rf /var/lib/apt/lists/*
-COPY --from=builder /app/package.json ./
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/server.ts ./
-COPY --from=builder /app/reelsgen.db* ./
-COPY --from=builder /app/tsconfig.json ./
-EXPOSE 3000
-ENV NODE_ENV=production
-ENV PORT=3000
-CMD ["npm", "start"]
+# Instalar dependências (incluindo devDependencies para o build)
+RUN npm ci
+# ... (restante do arquivo)
