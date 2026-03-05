@@ -39,9 +39,20 @@ try {
       plan_start_date TEXT,
       plan_expiry_date TEXT,
       reels_generated_today INTEGER DEFAULT 0,
-      last_reset_time TEXT
+      last_reset_time TEXT,
+      ip_address TEXT
     );
+  `);
 
+  // Migration: Add ip_address if it doesn't exist (for existing databases)
+  try {
+    db.prepare("SELECT ip_address FROM users LIMIT 1").get();
+  } catch (e) {
+    console.log("Adding ip_address column to users table...");
+    db.exec("ALTER TABLE users ADD COLUMN ip_address TEXT");
+  }
+
+  db.exec(`
     CREATE TABLE IF NOT EXISTS reels (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER NOT NULL,
@@ -130,13 +141,23 @@ async function startServer() {
     if (!email.endsWith("@hotmail.com") && !email.endsWith("@outlook.com")) {
       return res.status(400).json({ error: "Apenas e-mails Hotmail ou Outlook são permitidos." });
     }
+
+    const ip = (req.headers['x-forwarded-for'] as string || req.socket.remoteAddress || '').split(',')[0].trim();
+
     try {
+      // Check IP limit
+      const ipCount: any = db.prepare("SELECT COUNT(*) as count FROM users WHERE ip_address = ?").get(ip);
+      if (ipCount && ipCount.count >= 2) {
+        return res.status(403).json({ error: "Limite de 2 cadastros por dispositivo/IP atingido." });
+      }
+
       const hashedPassword = await bcrypt.hash(password, 10);
       const finalUsername = username || email.split('@')[0];
-      db.prepare("INSERT INTO users (username, email, password) VALUES (?, ?, ?)").run(
+      db.prepare("INSERT INTO users (username, email, password, ip_address) VALUES (?, ?, ?, ?)").run(
         finalUsername,
         email,
-        hashedPassword
+        hashedPassword,
+        ip
       );
       console.log("User registered:", email);
 
