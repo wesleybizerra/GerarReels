@@ -1,10 +1,18 @@
 import { GoogleGenAI, Type, Modality } from "@google/genai";
 
-const apiKey = process.env.GEMINI_API_KEY || "";
-if (!apiKey) {
-  throw new Error("Chave da API (GEMINI_API_KEY) não encontrada. No Railway, adicione esta variável em 'Variables' e faça um novo Deploy.");
+let aiInstance: GoogleGenAI | null = null;
+
+function getAI() {
+  if (aiInstance) return aiInstance;
+
+  const apiKey = process.env.GEMINI_API_KEY || "";
+  if (!apiKey) {
+    throw new Error("Chave da API (GEMINI_API_KEY) não encontrada. No Railway, adicione esta variável em 'Variables' e faça um novo Deploy.");
+  }
+
+  aiInstance = new GoogleGenAI({ apiKey });
+  return aiInstance;
 }
-const ai = new GoogleGenAI({ apiKey });
 
 export interface ReelAsset {
   text: string;
@@ -39,6 +47,7 @@ export async function generateReelScript(theme: string, topic: string, language:
   O roteiro deve ser fluido e focado em retenção.`;
 
   try {
+    const ai = getAI();
     const response = await ai.models.generateContent({
       model,
       contents: prompt,
@@ -79,6 +88,7 @@ export async function generateReelScript(theme: string, topic: string, language:
 export async function generateSceneImage(prompt: string) {
   console.log(`Generating image for prompt: ${prompt}`);
   try {
+    const ai = getAI();
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash-image",
       contents: {
@@ -106,6 +116,7 @@ export async function generateSceneImage(prompt: string) {
 export async function generateSceneAudio(text: string, language: string) {
   console.log(`Generating audio for text: ${text.substring(0, 30)}...`);
   try {
+    const ai = getAI();
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash-preview-tts",
       contents: [{ parts: [{ text: `Narração em ${language}: ${text}` }] }],
