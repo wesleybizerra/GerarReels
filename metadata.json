@@ -1,0 +1,8 @@
+{
+  "name": "ReelsGen AI",
+  "description": "Plataforma SaaS de geração automática de vídeos estilo Reels com IA.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
