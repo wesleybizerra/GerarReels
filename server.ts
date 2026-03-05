@@ -12,6 +12,7 @@ import { MercadoPagoConfig, Preference } from "mercadopago";
 import dotenv from "dotenv";
 import { createServer } from "http";
 import { Server } from "socket.io";
+import { GoogleGenAI, Type, Modality } from "@google/genai";
 
 dotenv.config();
 
@@ -270,6 +271,96 @@ async function startServer() {
       JSON.stringify(assets)
     );
     res.json({ success: true });
+  });
+
+  // --- Gemini AI Routes ---
+  const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
+
+  app.post("/api-v1/generate/script", authenticate, async (req: any, res) => {
+    const { theme, topic, language, duration, plan } = req.body;
+    if (!process.env.GEMINI_API_KEY) {
+      return res.status(500).json({ error: "GEMINI_API_KEY não configurada no servidor." });
+    }
+
+    try {
+      const model = ai.models.get("gemini-3-flash-preview");
+      const isPremium = plan === 'Premium' || plan === 'Extremo';
+      const titleInstruction = isPremium
+        ? `Gere um título de ALTO IMPACTO para Reels/TikTok. Use gatilhos mentais. Curto (máximo 10 palavras).`
+        : "Gere um título atraente e direto sobre o assunto.";
+
+      const prompt = `Gere um roteiro para um vídeo estilo Reel (vertical 9:16) sobre o tema "${theme}" e o tópico "${topic}".
+      Idioma: ${language}. Duração: ${duration}s. ${titleInstruction}
+      Retorne JSON: { title: string, scenes: [{ text: string, imagePrompt: string }] }`;
+
+      const result = await model.generateContent({
+        contents: prompt,
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              title: { type: Type.STRING },
+              scenes: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    text: { type: Type.STRING },
+                    imagePrompt: { type: Type.STRING }
+                  },
+                  required: ["text", "imagePrompt"]
+                }
+              }
+            },
+            required: ["title", "scenes"]
+          }
+        }
+      });
+      res.json(JSON.parse(result.text || "{}"));
+    } catch (err: any) {
+      console.error("Script Error:", err);
+      res.status(500).json({ error: "Erro ao gerar roteiro." });
+    }
+  });
+
+  app.post("/api-v1/generate/image", authenticate, async (req: any, res) => {
+    const { prompt } = req.body;
+    try {
+      const model = ai.models.get("gemini-2.5-flash-image");
+      const result = await model.generateContent({
+        contents: { parts: [{ text: prompt }] },
+        config: { imageConfig: { aspectRatio: "9:16" } }
+      });
+      const part = result.candidates?.[0]?.content?.parts?.find(p => p.inlineData);
+      if (part?.inlineData) {
+        return res.json({ imageUrl: `data:image/png;base64,${part.inlineData.data}` });
+      }
+      throw new Error("No image data");
+    } catch (err) {
+      res.status(500).json({ error: "Erro ao gerar imagem." });
+    }
+  });
+
+  app.post("/api-v1/generate/audio", authenticate, async (req: any, res) => {
+    const { text, language } = req.body;
+    try {
+      const model = ai.models.get("gemini-2.5-flash-preview-tts");
+      const result = await model.generateContent({
+        contents: [{ parts: [{ text: `Narração em ${language}: ${text}` }] }],
+        config: {
+          responseModalities: [Modality.AUDIO],
+          speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } } }
+        }
+      });
+      const data = result.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+      if (data) {
+        return res.json({ audioUrl: `data:audio/mp3;base64,${data}` });
+      }
+      throw new Error("No audio data");
+    } catch (err) {
+      res.status(500).json({ error: "Erro ao gerar áudio." });
+    }
   });
 
   // API Catch-all (before Vite)

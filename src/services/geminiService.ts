@@ -1,19 +1,3 @@
-import { GoogleGenAI, Type, Modality } from "@google/genai";
-
-let aiInstance: GoogleGenAI | null = null;
-
-function getAI() {
-  if (aiInstance) return aiInstance;
-
-  const apiKey = process.env.GEMINI_API_KEY || "";
-  if (!apiKey) {
-    throw new Error("Chave da API (GEMINI_API_KEY) não encontrada. No Railway, adicione esta variável em 'Variables' e faça um novo Deploy.");
-  }
-
-  aiInstance = new GoogleGenAI({ apiKey });
-  return aiInstance;
-}
-
 export interface ReelAsset {
   text: string;
   imageUrl: string;
@@ -21,122 +5,42 @@ export interface ReelAsset {
 }
 
 export async function generateReelScript(theme: string, topic: string, language: string, duration: number, plan: string) {
-  const model = "gemini-3-flash-preview";
-
-  console.log(`Generating script for topic: ${topic} with theme: ${theme}`);
-
-  const isPremium = plan === 'Premium' || plan === 'Extremo';
-  const titleInstruction = isPremium
-    ? `Gere um título de ALTO IMPACTO para Reels/TikTok. 
-       Use gatilhos mentais como Curiosidade, Urgência, Prova Social ou Benefício Exclusivo. 
-       O título deve ser emocionalmente ressonante, curto (máximo 10 palavras) e focado em maximizar a Taxa de Clique (CTR) e Retenção. 
-       Analise o contexto do tópico "${topic}" e o conteúdo do roteiro para criar algo que pareça um segredo revelado ou uma solução definitiva.`
-    : "Gere um título atraente e direto sobre o assunto.";
-
-  const prompt = `Gere um roteiro para um vídeo estilo Reel (vertical 9:16) sobre o tema "${theme}" e o tópico "${topic}".
-  O idioma deve ser ${language}.
-  A duração aproximada deve ser de ${duration} segundos.
-  ${titleInstruction}
-  
-  Retorne um JSON com:
-  1. title: O título gerado.
-  2. scenes: Um array de objetos, cada um com:
-     - text: O texto da narração para aquela cena.
-     - imagePrompt: Um prompt detalhado em inglês para gerar uma imagem para esta cena.
-  
-  O roteiro deve ser fluido e focado em retenção.`;
-
-  try {
-    const ai = getAI();
-    const response = await ai.models.generateContent({
-      model,
-      contents: prompt,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            title: { type: Type.STRING },
-            scenes: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  text: { type: Type.STRING },
-                  imagePrompt: { type: Type.STRING }
-                },
-                required: ["text", "imagePrompt"]
-              }
-            }
-          },
-          required: ["title", "scenes"]
-        }
-      }
-    });
-
-    if (!response.text) {
-      throw new Error("Resposta do modelo vazia para o roteiro.");
-    }
-
-    return JSON.parse(response.text);
-  } catch (err) {
-    console.error("Erro ao gerar roteiro:", err);
-    throw err;
+  const res = await fetch('/api-v1/generate/script', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ theme, topic, language, duration, plan })
+  });
+  if (!res.ok) {
+    const data = await res.json();
+    throw new Error(data.error || "Erro ao gerar roteiro");
   }
+  return res.json();
 }
 
 export async function generateSceneImage(prompt: string) {
-  console.log(`Generating image for prompt: ${prompt}`);
-  try {
-    const ai = getAI();
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash-image",
-      contents: {
-        parts: [{ text: prompt }]
-      },
-      config: {
-        imageConfig: {
-          aspectRatio: "9:16"
-        }
-      }
-    });
-
-    for (const part of response.candidates?.[0]?.content?.parts || []) {
-      if (part.inlineData) {
-        return `data:image/png;base64,${part.inlineData.data}`;
-      }
-    }
-    throw new Error("Nenhuma imagem gerada pelo modelo.");
-  } catch (err) {
-    console.error("Erro ao gerar imagem:", err);
-    throw err;
+  const res = await fetch('/api-v1/generate/image', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ prompt })
+  });
+  if (!res.ok) {
+    const data = await res.json();
+    throw new Error(data.error || "Erro ao gerar imagem");
   }
+  const data = await res.json();
+  return data.imageUrl;
 }
 
 export async function generateSceneAudio(text: string, language: string) {
-  console.log(`Generating audio for text: ${text.substring(0, 30)}...`);
-  try {
-    const ai = getAI();
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash-preview-tts",
-      contents: [{ parts: [{ text: `Narração em ${language}: ${text}` }] }],
-      config: {
-        responseModalities: [Modality.AUDIO],
-        speechConfig: {
-          voiceConfig: {
-            prebuiltVoiceConfig: { voiceName: 'Kore' }
-          }
-        }
-      }
-    });
-
-    const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-    if (base64Audio) {
-      return `data:audio/mp3;base64,${base64Audio}`;
-    }
-    throw new Error("Nenhum áudio gerado pelo modelo.");
-  } catch (err) {
-    console.error("Erro ao gerar áudio:", err);
-    throw err;
+  const res = await fetch('/api-v1/generate/audio', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text, language })
+  });
+  if (!res.ok) {
+    const data = await res.json();
+    throw new Error(data.error || "Erro ao gerar áudio");
   }
+  const data = await res.json();
+  return data.audioUrl;
 }
