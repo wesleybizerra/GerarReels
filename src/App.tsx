@@ -19,7 +19,7 @@ import {
   Download,
   Play
 } from 'lucide-react';
-import { io } from 'socket.io-client';
+import { io, Socket } from 'socket.io-client';
 import { useAuth } from './context/AuthContext';
 import { THEMES, LANGUAGES, PLANS, cn } from './constants';
 import { generateReelScript, generateSceneImage, generateSceneAudio } from './services/geminiService';
@@ -497,7 +497,7 @@ function AdminTab() {
       });
 
     // Setup real-time updates
-    const socket = io();
+    const socket: Socket = io();
     socket.on('user:registered', (newUser) => {
       setUsers(prev => [newUser, ...prev]);
     });
