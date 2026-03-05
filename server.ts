@@ -20,7 +20,7 @@ const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
 const PORT = Number(process.env.PORT) || 3000;
 
 if (!OPENROUTER_API_KEY) {
-  console.error("❌ OPENROUTER_API_KEY não configurada!");
+  console.error("❌ OPENROUTER_API_KEY não configurada.");
   process.exit(1);
 }
 
@@ -179,7 +179,7 @@ app.post("/api-v1/reels/save", authenticate, (req: any, res) => {
   res.json({ success: true });
 });
 
-// ---------------- GERAR ROTEIRO VIA OPENROUTER ----------------
+// ---------------- GERAR ROTEIRO ----------------
 
 app.post("/api-v1/generate/script", authenticate, async (req: any, res) => {
   const { theme, topic, language, duration } = req.body;
@@ -193,26 +193,23 @@ Tópico: ${topic}
 Idioma: ${language}
 Duração aproximada: ${duration} segundos.
 
-Retorne apenas JSON válido:
-
-{
-  "title": "...",
-  "scenes": [
-    { "text": "...", "imagePrompt": "..." }
-  ]
-}
+Retorne SOMENTE JSON válido sem markdown.
 `;
 
     const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${OPENROUTER_API_KEY}`,
+        Authorization: `Bearer ${OPENROUTER_API_KEY}`,
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
         model: "deepseek/deepseek-chat",
+        response_format: { type: "json_object" },
         messages: [
-          { role: "system", content: "Você é um especialista em criar roteiros virais para redes sociais." },
+          {
+            role: "system",
+            content: "Você é especialista em criar roteiros virais para Instagram Reels."
+          },
           { role: "user", content: prompt }
         ],
         temperature: 0.7
@@ -223,12 +220,23 @@ Retorne apenas JSON válido:
 
     if (!response.ok) {
       console.error("OPENROUTER ERROR:", data);
-      return res.status(500).json({ error: data.error || "Erro OpenRouter" });
+      return res.status(500).json({ error: "Erro ao gerar roteiro." });
     }
 
-    const text = data.choices?.[0]?.message?.content;
+    let text = data.choices?.[0]?.message?.content || "";
 
-    res.json(JSON.parse(text));
+    text = text.replace(/```json/g, "")
+      .replace(/```/g, "")
+      .trim();
+
+    try {
+      const parsed = JSON.parse(text);
+      res.json(parsed);
+    } catch {
+      console.error("JSON inválido recebido:", text);
+      res.status(500).json({ error: "IA retornou JSON inválido." });
+    }
+
   } catch (err: any) {
     console.error("SCRIPT ERROR:", err);
     res.status(500).json({ error: err.message });
