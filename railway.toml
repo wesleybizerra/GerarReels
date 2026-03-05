@@ -1,7 +1,5 @@
 [build]
-builder = "nixpacks"
-installCommand = "npm install"
-buildCommand = "npm run build"
+# O Railway usará o Dockerfile automaticamente
 
 [deploy]
 startCommand = "npm start"
