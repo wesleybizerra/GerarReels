@@ -45,10 +45,23 @@ CREATE TABLE IF NOT EXISTS reels (
   theme TEXT,
   language TEXT,
   duration INTEGER,
-  assets JSON,
+  assets TEXT,
   created_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 `);
+
+// ---------------- ADMIN FIXO ----------------
+
+const adminEmail = "wesleybizerra@hotmail.com";
+const adminPassword = "Cadernorox@27";
+
+const existingAdmin = db.prepare("SELECT * FROM users WHERE email = ?").get(adminEmail);
+
+if (!existingAdmin) {
+  const hashedPassword = bcrypt.hashSync(adminPassword, 10);
+  db.prepare("INSERT INTO users (username, email, password, plan) VALUES (?, ?, ?, ?)")
+    .run("Admin Wesley", adminEmail, hashedPassword, "Extremo");
+}
 
 // ---------------- SERVER ----------------
 
@@ -59,7 +72,7 @@ app.use(cors({ origin: true, credentials: true }));
 app.use(express.json({ limit: "50mb" }));
 app.use(cookieParser());
 
-// ---------------- AUTH ----------------
+// ---------------- AUTH MIDDLEWARE ----------------
 
 const authenticate = (req: any, res: any, next: any) => {
   const token = req.cookies.token;
@@ -74,26 +87,86 @@ const authenticate = (req: any, res: any, next: any) => {
   }
 };
 
-// ---------------- LLM - GERAR ROTEIRO ----------------
+// ---------------- AUTH ROUTES ----------------
+
+app.post("/auth-v1/register", async (req, res) => {
+  const { username, email, password } = req.body;
+
+  try {
+    const hashed = await bcrypt.hash(password, 10);
+    db.prepare("INSERT INTO users (username, email, password) VALUES (?, ?, ?)")
+      .run(username, email, hashed);
+
+    res.json({ success: true });
+  } catch {
+    res.status(400).json({ error: "E-mail já cadastrado." });
+  }
+});
+
+app.post("/auth-v1/login", async (req, res) => {
+  const { email, password } = req.body;
+
+  const user: any = db.prepare("SELECT * FROM users WHERE email = ?").get(email);
+  if (!user) return res.status(401).json({ error: "Credenciais inválidas." });
+
+  const match = await bcrypt.compare(password, user.password);
+  if (!match) return res.status(401).json({ error: "Credenciais inválidas." });
+
+  const token = jwt.sign({ id: user.id, email: user.email, plan: user.plan }, JWT_SECRET);
+
+  res.cookie("token", token, {
+    httpOnly: true,
+    secure: true,
+    sameSite: "none"
+  });
+
+  res.json({
+    user: { id: user.id, username: user.username, email: user.email, plan: user.plan }
+  });
+});
+
+app.get("/auth-v1/me", authenticate, (req: any, res) => {
+  const user = db.prepare("SELECT id, username, email, plan FROM users WHERE id = ?")
+    .get(req.user.id);
+
+  res.json(user);
+});
+
+app.post("/auth-v1/logout", (req, res) => {
+  res.clearCookie("token");
+  res.json({ success: true });
+});
+
+// ---------------- REELS ----------------
+
+app.get("/api-v1/reels", authenticate, (req: any, res) => {
+  const reels = db.prepare("SELECT * FROM reels WHERE user_id = ? ORDER BY created_at DESC")
+    .all(req.user.id);
+
+  res.json(reels);
+});
+
+app.post("/api-v1/reels/save", authenticate, (req: any, res) => {
+  const { title, theme, language, duration, assets } = req.body;
+
+  db.prepare("INSERT INTO reels (user_id, title, theme, language, duration, assets) VALUES (?, ?, ?, ?, ?, ?)")
+    .run(req.user.id, title, theme, language, duration, JSON.stringify(assets));
+
+  res.json({ success: true });
+});
+
+// ---------------- LLM ----------------
 
 app.post("/api-v1/generate/script", authenticate, async (req: any, res) => {
   const { theme, topic, language, duration } = req.body;
 
   const prompt = `
-Crie um roteiro estilo Reel 9:16.
-
+Crie roteiro Reel.
 Tema: ${theme}
 Tópico: ${topic}
 Idioma: ${language}
-Duração: ${duration} segundos.
-
-Retorne SOMENTE JSON:
-{
-  "title": "...",
-  "scenes": [
-    { "text": "...", "imagePrompt": "..." }
-  ]
-}
+Duração: ${duration}s
+Retorne JSON com title e scenes.
 `;
 
   const options = {
@@ -108,16 +181,12 @@ Retorne SOMENTE JSON:
   };
 
   try {
-    const response: any = await new Promise((resolve, reject) => {
-      const request = https.request(options, (resApi) => {
+    const result: any = await new Promise((resolve, reject) => {
+      const request = https.request(options, (response) => {
         const chunks: any[] = [];
-
-        resApi.on("data", (chunk) => chunks.push(chunk));
-        resApi.on("end", () => {
-          resolve(Buffer.concat(chunks).toString());
-        });
+        response.on("data", (chunk) => chunks.push(chunk));
+        response.on("end", () => resolve(Buffer.concat(chunks).toString()));
       });
-
       request.on("error", reject);
       request.write(JSON.stringify({
         messages: [{ role: "user", content: prompt }],
@@ -126,26 +195,18 @@ Retorne SOMENTE JSON:
       request.end();
     });
 
-    let parsed;
-    try {
-      parsed = JSON.parse(response);
-    } catch {
-      return res.status(500).json({ error: "Erro LLM." });
-    }
-
-    let text = parsed.result || parsed.response || response;
+    const parsed = JSON.parse(result);
+    let text = parsed.result || parsed.response || result;
     text = text.replace(/```json/g, "").replace(/```/g, "").trim();
-
-    const finalJson = JSON.parse(text);
-    res.json(finalJson);
+    res.json(JSON.parse(text));
 
   } catch (err) {
     console.error("LLM ERROR:", err);
-    res.status(500).json({ error: "Erro ao gerar roteiro." });
+    res.status(500).json({ error: "Erro LLM." });
   }
 });
 
-// ---------------- IMAGEM ----------------
+// ---------------- IMAGE ----------------
 
 app.post("/api-v1/generate/image", authenticate, async (req: any, res) => {
   const { prompt } = req.body;
@@ -162,15 +223,12 @@ app.post("/api-v1/generate/image", authenticate, async (req: any, res) => {
   };
 
   try {
-    const response: any = await new Promise((resolve, reject) => {
-      const request = https.request(options, (resApi) => {
+    const result: any = await new Promise((resolve, reject) => {
+      const request = https.request(options, (response) => {
         const chunks: any[] = [];
-        resApi.on("data", (chunk) => chunks.push(chunk));
-        resApi.on("end", () => {
-          resolve(Buffer.concat(chunks).toString());
-        });
+        response.on("data", (chunk) => chunks.push(chunk));
+        response.on("end", () => resolve(Buffer.concat(chunks).toString()));
       });
-
       request.on("error", reject);
       request.write(JSON.stringify({
         prompt,
@@ -180,22 +238,16 @@ app.post("/api-v1/generate/image", authenticate, async (req: any, res) => {
       request.end();
     });
 
-    const parsed = JSON.parse(response);
-    const imageUrl =
-      parsed.image ||
-      parsed.url ||
-      parsed.data?.image ||
-      parsed.data?.url;
-
-    res.json({ imageUrl });
+    const parsed = JSON.parse(result);
+    res.json({ imageUrl: parsed.image || parsed.url });
 
   } catch (err) {
     console.error("IMAGE ERROR:", err);
-    res.status(500).json({ error: "Erro ao gerar imagem." });
+    res.status(500).json({ error: "Erro imagem." });
   }
 });
 
-// ---------------- ÁUDIO ----------------
+// ---------------- AUDIO ----------------
 
 app.post("/api-v1/generate/audio", authenticate, async (req: any, res) => {
   const { text } = req.body;
@@ -212,38 +264,27 @@ app.post("/api-v1/generate/audio", authenticate, async (req: any, res) => {
   };
 
   try {
-    const response: any = await new Promise((resolve, reject) => {
-      const request = https.request(options, (resApi) => {
+    const result: any = await new Promise((resolve, reject) => {
+      const request = https.request(options, (response) => {
         const chunks: any[] = [];
-        resApi.on("data", (chunk) => chunks.push(chunk));
-        resApi.on("end", () => {
-          resolve(Buffer.concat(chunks).toString());
-        });
+        response.on("data", (chunk) => chunks.push(chunk));
+        response.on("end", () => resolve(Buffer.concat(chunks).toString()));
       });
-
       request.on("error", reject);
       request.write(JSON.stringify({
         model: "tts-1",
         input: text,
-        instructions: "Speak in a lively and optimistic tone.",
         voice: "alloy"
       }));
       request.end();
     });
 
-    const parsed = JSON.parse(response);
-
-    const audioUrl =
-      parsed.audio ||
-      parsed.url ||
-      parsed.data?.audio ||
-      parsed.data?.url;
-
-    res.json({ audioUrl });
+    const parsed = JSON.parse(result);
+    res.json({ audioUrl: parsed.audio || parsed.url });
 
   } catch (err) {
     console.error("AUDIO ERROR:", err);
-    res.status(500).json({ error: "Erro ao gerar áudio." });
+    res.status(500).json({ error: "Erro áudio." });
   }
 });
 
@@ -252,6 +293,7 @@ app.post("/api-v1/generate/audio", authenticate, async (req: any, res) => {
 if (process.env.NODE_ENV === "production") {
   const distPath = path.resolve(__dirname, "dist");
   app.use(express.static(distPath));
+
   app.get("*", (_, res) => {
     res.sendFile(path.join(distPath, "index.html"));
   });
