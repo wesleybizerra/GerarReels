@@ -194,15 +194,20 @@ function GenerateTab({ user }: { user: any }) {
 
       setGeneratedReel(finalReel);
       setStatus('Salvando na sua galeria...');
-      await fetch('/api-v1/reels/save', {
+      const saveRes = await fetch('/api-v1/reels/save', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(finalReel)
       });
+
+      if (!saveRes.ok) {
+        throw new Error(`Erro ao salvar reel: ${saveRes.status}`);
+      }
+
       setStatus('');
-    } catch (err) {
-      console.error(err);
-      setStatus('Erro na geração. Tente novamente.');
+    } catch (err: any) {
+      console.error("Generation Error:", err);
+      setStatus(`Erro: ${err.message || 'Tente novamente.'}`);
     } finally {
       setIsGenerating(false);
     }
