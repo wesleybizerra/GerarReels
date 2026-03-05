@@ -9,14 +9,14 @@ import jwt from "jsonwebtoken";
 import dotenv from "dotenv";
 import { createServer } from "http";
 import { Server } from "socket.io";
-import { GoogleGenAI, Type, Modality } from "@google/genai";
+import { GoogleGenAI } from "@google/genai";
 
 dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const JWT_SECRET = process.env.JWT_SECRET || "super-secret";
+const JWT_SECRET = process.env.JWT_SECRET || "super-secret-key";
 const PORT = Number(process.env.PORT) || 3000;
 
 const ai = new GoogleGenAI({
@@ -50,6 +50,25 @@ CREATE TABLE IF NOT EXISTS reels (
 );
 `);
 
+// ---------------- ADMIN FIXO ----------------
+
+const adminEmail = "wesleybizerra@hotmail.com";
+const adminPassword = "Cadernorox@27";
+
+const existingAdmin = db
+  .prepare("SELECT * FROM users WHERE email = ?")
+  .get(adminEmail);
+
+if (!existingAdmin) {
+  const hashedPassword = bcrypt.hashSync(adminPassword, 10);
+
+  db.prepare(
+    "INSERT INTO users (username, email, password, plan) VALUES (?, ?, ?, ?)"
+  ).run("Admin Wesley", adminEmail, hashedPassword, "Extremo");
+
+  console.log("✅ Admin criado automaticamente.");
+}
+
 // ---------------- SERVER ----------------
 
 const app = express();
@@ -62,10 +81,11 @@ app.use(cors({ origin: true, credentials: true }));
 app.use(express.json({ limit: "50mb" }));
 app.use(cookieParser());
 
-// ---------------- AUTH ----------------
+// ---------------- AUTH MIDDLEWARE ----------------
 
 const authenticate = (req: any, res: any, next: any) => {
   const token = req.cookies.token;
+
   if (!token) return res.status(401).json({ error: "Unauthorized" });
 
   try {
@@ -77,11 +97,14 @@ const authenticate = (req: any, res: any, next: any) => {
   }
 };
 
+// ---------------- AUTH ROUTES ----------------
+
 app.post("/auth-v1/register", async (req, res) => {
   const { username, email, password } = req.body;
 
   try {
     const hashed = await bcrypt.hash(password, 10);
+
     db.prepare(
       "INSERT INTO users (username, email, password) VALUES (?, ?, ?)"
     ).run(username, email, hashed);
@@ -96,14 +119,20 @@ app.post("/auth-v1/register", async (req, res) => {
 
 app.post("/auth-v1/login", async (req, res) => {
   const { email, password } = req.body;
+
   const user: any = db
     .prepare("SELECT * FROM users WHERE email = ?")
     .get(email);
 
-  if (!user) return res.status(401).json({ error: "Credenciais inválidas." });
+  if (!user) {
+    return res.status(401).json({ error: "Credenciais inválidas." });
+  }
 
   const match = await bcrypt.compare(password, user.password);
-  if (!match) return res.status(401).json({ error: "Credenciais inválidas." });
+
+  if (!match) {
+    return res.status(401).json({ error: "Credenciais inválidas." });
+  }
 
   const token = jwt.sign(
     { id: user.id, email: user.email, plan: user.plan },
@@ -126,17 +155,17 @@ app.post("/auth-v1/login", async (req, res) => {
   });
 });
 
+app.post("/auth-v1/logout", (req, res) => {
+  res.clearCookie("token");
+  res.json({ success: true });
+});
+
 app.get("/auth-v1/me", authenticate, (req: any, res) => {
   const user = db
     .prepare("SELECT id, username, email, plan FROM users WHERE id = ?")
     .get(req.user.id);
 
   res.json(user);
-});
-
-app.post("/auth-v1/logout", (req, res) => {
-  res.clearCookie("token");
-  res.json({ success: true });
 });
 
 // ---------------- REELS ----------------
@@ -159,7 +188,7 @@ app.post("/api-v1/reels/save", authenticate, (req: any, res) => {
   res.json({ success: true });
 });
 
-// ---------------- GEMINI ----------------
+// ---------------- GEMINI SCRIPT ----------------
 
 app.post("/api-v1/generate/script", authenticate, async (req: any, res) => {
   const { theme, topic, language, duration } = req.body;
@@ -173,7 +202,7 @@ Tópico: ${topic}
 Idioma: ${language}
 Duração aproximada: ${duration} segundos.
 
-Retorne JSON:
+Retorne JSON válido:
 {
   "title": "...",
   "scenes": [
@@ -195,72 +224,17 @@ Retorne JSON:
   }
 });
 
-app.post("/api-v1/generate/image", authenticate, async (req: any, res) => {
-  const { prompt } = req.body;
-
-  try {
-    const result = await ai.models.generateContent({
-      model: "gemini-1.5-flash",
-      contents: prompt
-    });
-
-    const part = result.candidates?.[0]?.content?.parts?.[0];
-
-    if (part?.inlineData?.data) {
-      res.json({
-        imageUrl: `data:image/png;base64,${part.inlineData.data}`
-      });
-    } else {
-      res.status(500).json({ error: "Imagem não gerada." });
-    }
-  } catch (err: any) {
-    console.error("IMAGE ERROR:", err);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-app.post("/api-v1/generate/audio", authenticate, async (req: any, res) => {
-  const { text, language } = req.body;
-
-  try {
-    const result = await ai.models.generateContent({
-      model: "gemini-1.5-flash",
-      contents: [
-        {
-          parts: [{ text: `Narração em ${language}: ${text}` }]
-        }
-      ],
-      config: {
-        responseModalities: [Modality.AUDIO]
-      }
-    });
-
-    const data =
-      result.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-
-    if (data) {
-      res.json({
-        audioUrl: `data:audio/mp3;base64,${data}`
-      });
-    } else {
-      res.status(500).json({ error: "Áudio não gerado." });
-    }
-  } catch (err: any) {
-    console.error("AUDIO ERROR:", err);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// ---------------- STATIC ----------------
+// ---------------- STATIC (PRODUCTION) ----------------
 
 if (process.env.NODE_ENV === "production") {
   const distPath = path.resolve(__dirname, "dist");
   app.use(express.static(distPath));
+
   app.get("*", (_, res) => {
     res.sendFile(path.join(distPath, "index.html"));
   });
 }
 
 httpServer.listen(PORT, "0.0.0.0", () => {
-  console.log(`✅ Server running on port ${PORT}`);
+  console.log(`✅ Server rodando na porta ${PORT}`);
 });
