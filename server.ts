@@ -212,7 +212,7 @@ Retorne JSON válido:
 `;
 
     const result = await ai.models.generateContent({
-      model: "gemini-3-flash",
+      model: "gemini-2.0-flash",
       contents: prompt,
       config: { responseMimeType: "application/json" }
     });
